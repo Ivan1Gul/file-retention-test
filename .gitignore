@@ -1,3 +1,4 @@
 tmp/
 app/.env
 app/vendor/
+.idea/

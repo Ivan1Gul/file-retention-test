@@ -1,0 +1,3 @@
+tmp/
+app/.env
+app/vendor/

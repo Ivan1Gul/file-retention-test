@@ -1,0 +1,77 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: file-retention-app
+    working_dir: /var/www/html
+    env_file:
+      - ./app/.env.example
+    volumes:
+      - ./app:/var/www/html
+    ports:
+      - "${APP_PORT:-8088}:8000"
+    environment:
+      APP_URL: "http://localhost:${APP_PORT:-8088}"
+      RUN_MIGRATIONS: "true"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: file-retention-scheduler
+    working_dir: /var/www/html
+    env_file:
+      - ./app/.env.example
+    volumes:
+      - ./app:/var/www/html
+    environment:
+      APP_URL: "http://localhost:${APP_PORT:-8088}"
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: php artisan schedule:work
+
+  mysql:
+    image: mysql:8.4
+    container_name: file-retention-mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT:-33061}:3306"
+    environment:
+      MYSQL_DATABASE: file_retention
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: file-retention-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql_data:
